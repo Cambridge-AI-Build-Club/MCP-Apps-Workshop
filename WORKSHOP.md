@@ -200,10 +200,9 @@ Now restart Claude Desktop:
 
 **Verify it works:**
 1. Open a new conversation in Claude Desktop
-2. Look for the **hammer icon** (🔨) in the input area — this means tools are available
-3. Click the hammer to see your `hello` tool listed
-4. Type: **"Say hello to Alice"**
-5. Claude should call your `hello` tool and display the greeting!
+2. Go to *Settings/Developer* and check if the **todo-mcp-server** is running.
+3. Type: **"Say hello to Alice"**
+4. Claude should call your `hello` tool and display the greeting!
 
 > **Don't see the hammer?** Check [Troubleshooting](#appendix-troubleshooting) at the end.
 

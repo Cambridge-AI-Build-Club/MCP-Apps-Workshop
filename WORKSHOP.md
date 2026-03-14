@@ -27,11 +27,11 @@ In this workshop, you'll build a fully functional MCP server that manages a todo
 ### Architecture
 
 ```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+┌──────────────────┐     ┌─────────────────┐     ┌─────────────────┐
 │   Claude Desktop │     │   MCP Client    │     │   MCP Server    │
 │   (Host)         │────▶│   (built into   │────▶│   (your code!)  │
-│                  │     │    the host)     │     │                 │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
+│                  │     │    the host)    │     │                 │
+└──────────────────┘     └─────────────────┘     └─────────────────┘
 ```
 
 The **Host** (Claude Desktop) has a built-in **Client** that talks to your **Server** via a standardized protocol.
@@ -574,11 +574,11 @@ MCP Apps let tools return interactive HTML interfaces that render in a sandboxed
 │  │  │  ┌──────────────────────┐ [Add]     │    │  │
 │  │  │  │ Add a new todo...    │           │    │  │
 │  │  │  └──────────────────────┘           │    │  │
-│  │  │  ☑ Buy groceries              ×    │    │  │
-│  │  │  ☑ Clean the house            ×    │    │  │
-│  │  │  ☐ Write a blog post          ×    │    │  │
+│  │  │  ☑ Buy groceries              ×     │    │  │
+│  │  │  ☑ Clean the house            ×     │    │  │
+│  │  │  ☐ Write a blog post          ×     │    │  │
 │  │  └─────────────────────────────────────┘    │  │
-│  │         ↑ Interactive iframe (sandboxed)     │  │
+│  │         ↑ Interactive iframe (sandboxed)    │  │
 │  └─────────────────────────────────────────────┘  │
 └───────────────────────────────────────────────────┘
 ```
@@ -606,7 +606,7 @@ When Claude calls the tool, the host:
 ┌──────────┐    tools/call    ┌──────────┐    tool result    ┌──────────┐
 │  Claude  │ ───────────────▶ │  Server  │ ────────────────▶ │  App UI  │
 │  (Host)  │                  │          │                   │ (iframe) │
-│          │ ◀──────────────  │          │ ◀────────────────  │          │
+│          │ ◀──────────────  │          │ ◀──────────────── │          │
 └──────────┘  fetch ui://     └──────────┘  callServerTool   └──────────┘
 ```
 

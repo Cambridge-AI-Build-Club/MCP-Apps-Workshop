@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Todo App</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        padding: 20px;
+        background: #f8f9fa;
+        color: #333;
+      }
+      h1 { font-size: 1.4em; margin-bottom: 8px; color: #1a1a1a; }
+      .stats { font-size: 12px; color: #888; margin-bottom: 14px; }
+      .add-form { display: flex; gap: 8px; margin-bottom: 20px; }
+      .add-form input {
+        flex: 1; padding: 8px 12px;
+        border: 1px solid #ddd; border-radius: 6px; font-size: 14px;
+        outline: none;
+      }
+      .add-form input:focus { border-color: #4f46e5; }
+      .add-form button {
+        padding: 8px 16px; background: #4f46e5; color: white;
+        border: none; border-radius: 6px; font-size: 14px; cursor: pointer;
+      }
+      .add-form button:hover { background: #4338ca; }
+      .add-form button:disabled { background: #a5a3f0; cursor: not-allowed; }
+      .todo-list { list-style: none; }
+      .todo-item {
+        display: flex; align-items: center; gap: 10px;
+        padding: 10px 12px; background: white; border-radius: 8px;
+        margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        transition: opacity 0.2s;
+      }
+      .todo-item.completed .todo-title { text-decoration: line-through; color: #999; }
+      .todo-item.loading { opacity: 0.5; pointer-events: none; }
+      .todo-title { flex: 1; font-size: 14px; }
+      .todo-date { font-size: 11px; color: #bbb; }
+      .todo-checkbox {
+        width: 18px; height: 18px; cursor: pointer;
+        accent-color: #4f46e5;
+      }
+      .delete-btn {
+        background: none; border: none; color: #e53e3e;
+        cursor: pointer; font-size: 18px; padding: 2px 6px;
+        border-radius: 4px; line-height: 1;
+      }
+      .delete-btn:hover { background: #fee2e2; }
+      .empty-state {
+        text-align: center; padding: 40px 20px;
+        color: #999; font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Todo List</h1>
+    <div class="stats" id="stats"></div>
+    <form class="add-form" id="add-form">
+      <input type="text" id="todo-input" placeholder="Add a new todo..." required />
+      <button type="submit">Add</button>
+    </form>
+    <ul class="todo-list" id="todo-list">
+      <li class="empty-state">Loading...</li>
+    </ul>
+    <script type="module" src="/ui/todo-app.ts"></script>
+  </body>
+</html>

@@ -1,6 +1,6 @@
 # MCP App Workshop: Build a Todo List Manager
 
-> **Duration:** 1 hour | **Level:** Intermediate | **Language:** TypeScript
+> **Duration:** 1–1.5 hours | **Level:** Intermediate | **Language:** TypeScript
 
 In this workshop, you'll build a fully functional MCP server that manages a todo list. By the end, you'll understand all three MCP primitives — **Tools**, **Resources**, and **Prompts** — and have a working server connected to Claude Desktop.
 
@@ -14,8 +14,9 @@ In this workshop, you'll build a fully functional MCP server that manages a todo
 4. [Step 2: Todo CRUD Tools](#section-3-step-2-todo-crud-tools)
 5. [Step 3: Resources](#section-4-step-3-resources)
 6. [Step 4: Prompt Templates](#section-5-step-4-prompt-templates)
-7. [Wrap-up & Next Steps](#section-6-wrap-up--next-steps)
-8. [Appendix: Troubleshooting](#appendix-troubleshooting)
+7. [Step 5: MCP Apps (Interactive UI)](#section-6-step-5--mcp-apps-interactive-ui)
+8. [Wrap-up & Next Steps](#section-7-wrap-up--next-steps)
+9. [Appendix: Troubleshooting](#appendix-troubleshooting)
 
 ---
 
@@ -77,13 +78,18 @@ This installs:
 mcp_app_workshop/
 ├── package.json           # Dependencies & scripts
 ├── tsconfig.json          # TypeScript configuration
+├── vite.config.ts         # Vite config for UI bundling (Step 5)
 ├── src/
 │   └── index.ts           # Your working file (edit this!)
+├── ui/                    # MCP App UI files (Step 5)
+│   ├── todo-app.html      #   HTML entry point
+│   └── todo-app.ts        #   Interactive UI logic
 ├── steps/                 # Complete snapshots for each step
 │   ├── step1_hello_world.ts
 │   ├── step2_todo_crud.ts
 │   ├── step3_resources.ts
-│   └── step4_prompts.ts
+│   ├── step4_prompts.ts
+│   └── step5_mcp_app.ts
 ├── WORKSHOP.md            # This file
 └── README.md              # Quick-start overview
 ```
@@ -544,15 +550,316 @@ Restart Claude Desktop (Cmd+Q → reopen).
 
 ---
 
-## Section 6: Wrap-up & Next Steps
+## Section 6: Step 5 — MCP Apps (Interactive UI)
 
-Congratulations! You've built a complete MCP server with all three primitives:
+> **Bonus step** — This section adds ~30 minutes and covers MCP Apps, an extension to MCP that lets your server render interactive HTML UIs directly inside the chat.
 
-| What you built | Primitive | Purpose |
-|----------------|-----------|---------|
+So far, all our tools return **text**. But what if you could show an interactive todo list — with checkboxes, an add form, and delete buttons — right inside the conversation? That's what **MCP Apps** enables.
+
+### 6.1 What Are MCP Apps?
+
+MCP Apps let tools return interactive HTML interfaces that render in a sandboxed iframe inside the host (Claude Desktop, claude.ai, etc.). Instead of just reading text, users can **click, type, and interact** with your data.
+
+```
+┌───────────────────────────────────────────────────┐
+│  Claude Desktop / claude.ai                       │
+│                                                   │
+│  User: "Show me my todos"                         │
+│                                                   │
+│  Claude calls show_todos tool...                  │
+│                                                   │
+│  ┌─────────────────────────────────────────────┐  │
+│  │  ┌─────────────────────────────────────┐    │  │
+│  │  │  Todo List              2/3 done    │    │  │
+│  │  │  ┌──────────────────────┐ [Add]     │    │  │
+│  │  │  │ Add a new todo...    │           │    │  │
+│  │  │  └──────────────────────┘           │    │  │
+│  │  │  ☑ Buy groceries              ×    │    │  │
+│  │  │  ☑ Clean the house            ×    │    │  │
+│  │  │  ☐ Write a blog post          ×    │    │  │
+│  │  └─────────────────────────────────────┘    │  │
+│  │         ↑ Interactive iframe (sandboxed)     │  │
+│  └─────────────────────────────────────────────┘  │
+└───────────────────────────────────────────────────┘
+```
+
+**Key advantages over plain text:**
+- **Interactive** — Users click checkboxes and buttons instead of typing commands
+- **Context preservation** — The UI lives inside the conversation, no tab switching
+- **Bidirectional** — The app can call MCP tools on the server and get fresh data
+- **Secure** — Runs in a sandboxed iframe; can't access the host page
+
+### 6.2 How It Works
+
+MCP Apps combine two MCP primitives you already know:
+
+1. **A Tool** with a `_meta.ui.resourceUri` field pointing to a `ui://` resource
+2. **A Resource** that serves HTML (your interactive UI)
+
+When Claude calls the tool, the host:
+1. Fetches the `ui://` resource to get the HTML
+2. Renders it in a sandboxed iframe
+3. Pushes the tool result to the app via `postMessage`
+4. The app can then call tools back on the server for user interactions
+
+```
+┌──────────┐    tools/call    ┌──────────┐    tool result    ┌──────────┐
+│  Claude  │ ───────────────▶ │  Server  │ ────────────────▶ │  App UI  │
+│  (Host)  │                  │          │                   │ (iframe) │
+│          │ ◀──────────────  │          │ ◀────────────────  │          │
+└──────────┘  fetch ui://     └──────────┘  callServerTool   └──────────┘
+```
+
+### 6.3 Setup Changes
+
+This step requires a few changes to the project setup because MCP Apps use **HTTP transport** instead of stdio. The host needs to fetch the HTML UI over the network.
+
+**Install the new dependencies:**
+
+```bash
+npm install
+```
+
+> The new dependencies were already added to `package.json`: `@modelcontextprotocol/ext-apps` (the MCP Apps SDK), `express` and `cors` (HTTP server), plus `vite` and `vite-plugin-singlefile` (UI bundling).
+
+**New project structure:**
+
+```
+mcp_app_workshop/
+├── ...
+├── vite.config.ts          # NEW: Vite config for bundling the UI
+├── ui/                     # NEW: UI files for MCP App
+│   ├── todo-app.html       #   HTML entry point
+│   └── todo-app.ts         #   Interactive UI logic
+├── steps/
+│   ├── ...
+│   └── step5_mcp_app.ts    # NEW: Complete Step 5 snapshot
+```
+
+### 6.4 Write the UI
+
+The UI is a standard HTML page with TypeScript that uses the `App` class from `@modelcontextprotocol/ext-apps` to communicate with the host.
+
+**`ui/todo-app.html`** — This file is already created for you. It contains a simple form and list layout with inline CSS. The key line is the script import at the bottom:
+
+```html
+<script type="module" src="/ui/todo-app.ts"></script>
+```
+
+**`ui/todo-app.ts`** — This is where the interactivity lives. Open it and review the key patterns:
+
+```typescript
+import { App } from "@modelcontextprotocol/ext-apps";
+
+// Create an App instance and connect to the host
+const app = new App({ name: "Todo App", version: "1.0.0" });
+app.connect();
+
+// Handle the initial tool result pushed by the host
+app.ontoolresult = (result) => {
+  const text = result.content?.find((c: any) => c.type === "text")?.text;
+  if (text) {
+    const todos = JSON.parse(text);
+    renderTodos(todos);
+  }
+};
+
+// Call tools on the server from the UI
+addForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  await app.callServerTool({ name: "add_todo", arguments: { title } });
+  await refreshTodos();  // calls show_todos to get updated data
+});
+```
+
+**Key patterns:**
+- **`app.connect()`** — Establishes the `postMessage` channel with the host. Call this once.
+- **`app.ontoolresult`** — Fires when the host pushes the initial tool result (the current todos as JSON).
+- **`app.callServerTool()`** — Lets the UI call any MCP tool on your server. The request goes: App → Host → Server → Host → App.
+
+### 6.5 Update the Server
+
+Open `src/index.ts` and make the following changes. Or copy the complete file:
+
+```bash
+cp steps/step5_mcp_app.ts src/index.ts
+```
+
+If you prefer to add the code incrementally, here are the changes:
+
+**1. Update imports** — Replace the transport import and add new ones:
+
+```typescript
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import {
+  registerAppTool,
+  registerAppResource,
+  RESOURCE_MIME_TYPE,
+} from "@modelcontextprotocol/ext-apps/server";
+import express from "express";
+import cors from "cors";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { z } from "zod";
+```
+
+**2. Add the MCP App tool and resource** — After the Prompts section, add:
+
+```typescript
+// ---------- MCP App: Interactive Todo UI ----------
+
+const todoAppResourceUri = "ui://todo-app/todo-app.html";
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// App Tool: show_todos — renders an interactive todo dashboard
+registerAppTool(
+  server,
+  "show_todos",
+  {
+    title: "Show Todos",
+    description:
+      "Display an interactive todo list dashboard where you can add, complete, and delete todos visually.",
+    inputSchema: {},
+    _meta: { ui: { resourceUri: todoAppResourceUri } },
+  },
+  async () => {
+    return {
+      content: [{ type: "text", text: JSON.stringify(todos) }],
+    };
+  }
+);
+
+// App Resource: serves the bundled HTML UI
+registerAppResource(
+  server,
+  todoAppResourceUri,
+  todoAppResourceUri,
+  { mimeType: RESOURCE_MIME_TYPE },
+  async () => {
+    const html = await fs.readFile(
+      path.join(__dirname, "ui", "todo-app.html"),
+      "utf-8"
+    );
+    return {
+      contents: [
+        { uri: todoAppResourceUri, mimeType: RESOURCE_MIME_TYPE, text: html },
+      ],
+    };
+  }
+);
+```
+
+**3. Replace the stdio transport with HTTP** — Replace the `main()` function:
+
+```typescript
+// ---------- Start Server (HTTP Transport) ----------
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+app.post("/mcp", async (req, res) => {
+  const transport = new StreamableHTTPServerTransport({
+    sessionIdGenerator: undefined,
+    enableJsonResponse: true,
+  });
+  res.on("close", () => transport.close());
+  await server.connect(transport);
+  await transport.handleRequest(req, res, req.body);
+});
+
+const PORT = 3001;
+app.listen(PORT, () => {
+  console.log(`Todo MCP App Server running at http://localhost:${PORT}/mcp`);
+});
+```
+
+### 6.6 Key Concepts
+
+| Concept | What it does |
+|---------|-------------|
+| **`registerAppTool`** | Like `server.tool()`, but adds `_meta.ui.resourceUri` so the host knows to render a UI |
+| **`registerAppResource`** | Serves your bundled HTML when the host requests the `ui://` resource |
+| **`RESOURCE_MIME_TYPE`** | The MIME type for MCP App HTML resources |
+| **`App` class** | Client-side SDK that handles `postMessage` communication with the host |
+| **`app.callServerTool()`** | Lets the UI call MCP tools on the server through the host |
+| **HTTP transport** | MCP Apps require HTTP (not stdio) so the host can fetch the UI over the network |
+| **`vite-plugin-singlefile`** | Bundles HTML, CSS, and JS into a single self-contained HTML file |
+
+**Why HTTP instead of stdio?**
+
+In Steps 1–4, Claude Desktop launched your server as a subprocess and communicated via stdin/stdout. MCP Apps need the host to fetch HTML resources over the network, which requires an HTTP server. The `StreamableHTTPServerTransport` replaces `StdioServerTransport` for this purpose.
+
+### 6.7 Build & Test
+
+**Build both the server and UI:**
+
+```bash
+npm run build:app
+```
+
+This runs two build steps:
+1. `tsc` — Compiles the server TypeScript to `dist/index.js`
+2. `vite build` — Bundles the UI into `dist/todo-app.html` (single file with inlined CSS/JS)
+
+**Start the server:**
+
+```bash
+npm start
+```
+
+You should see: `Todo MCP App Server running at http://localhost:3001/mcp`
+
+**Testing with the basic-host (recommended for workshop):**
+
+The MCP Apps repository includes a test host for local development:
+
+```bash
+# In a separate directory
+git clone https://github.com/modelcontextprotocol/ext-apps.git
+cd ext-apps/examples/basic-host
+npm install
+SERVERS='["http://localhost:3001/mcp"]' npm start
+```
+
+Open `http://localhost:8080` in your browser. Select the `show_todos` tool and call it. You should see your interactive todo list rendered in an iframe!
+
+**Testing with Claude (claude.ai or Claude Desktop):**
+
+To connect your local server to Claude, you need to expose it to the internet:
+
+```bash
+# In a separate terminal
+npx cloudflared tunnel --url http://localhost:3001
+```
+
+Copy the generated URL (e.g., `https://random-name.trycloudflare.com`) and add it as a custom connector in Claude:
+1. Go to **Settings** → **Connectors** → **Add custom connector**
+2. Paste the cloudflare URL + `/mcp` (e.g., `https://random-name.trycloudflare.com/mcp`)
+3. Start a new chat and ask: **"Show me my todo list"**
+
+Claude should call the `show_todos` tool and render your interactive todo dashboard right in the conversation!
+
+**Try this flow:**
+1. Add a few todos by typing in the input and clicking **Add**
+2. Check off a todo by clicking its checkbox
+3. Delete a todo by clicking the **×** button
+4. Ask Claude: **"What's on my todo list?"** — it can still use the text-based `list_todos` tool alongside the interactive UI
+
+---
+
+## Section 7: Wrap-up & Next Steps
+
+Congratulations! You've built a complete MCP server covering all three core primitives plus MCP Apps:
+
+| What you built | Primitive / Extension | Purpose |
+|----------------|----------------------|---------|
 | `add_todo`, `list_todos`, `complete_todo`, `delete_todo` | **Tools** | Perform actions |
 | `todo://list` | **Resource** | Expose structured data |
 | `plan-tasks` | **Prompt** | Reusable template |
+| `show_todos` + interactive HTML | **MCP Apps** | Interactive UI in the chat |
 
 ### What You Learned
 
@@ -561,6 +868,8 @@ Congratulations! You've built a complete MCP server with all three primitives:
 - How to expose Resources for structured data access
 - How to build Prompt templates with dynamic context
 - How to configure and test MCP servers with Claude Desktop
+- How to build interactive UIs with MCP Apps using `registerAppTool`, `registerAppResource`, and the `App` class
+- How to switch from stdio to HTTP transport for MCP Apps
 
 ### Extension Ideas
 
@@ -572,6 +881,8 @@ Want to keep building? Try these challenges:
 4. **Tags** — Add a tagging system and filter tools
 5. **Resource templates** — Create `todo://item/{id}` to read individual todos
 6. **Multiple lists** — Support separate todo lists (work, personal, etc.)
+7. **Richer UI** — Add drag-to-reorder, priority colors, or a progress chart to the MCP App
+8. **Context updates** — Use `app.updateContext()` to send structured data back to the model
 
 ### Further Resources
 
@@ -579,6 +890,9 @@ Want to keep building? Try these challenges:
 - [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk)
 - [MCP Specification](https://spec.modelcontextprotocol.io)
 - [Example MCP Servers](https://github.com/modelcontextprotocol/servers)
+- [MCP Apps Overview](https://modelcontextprotocol.io/extensions/apps/overview)
+- [MCP Apps Build Guide](https://modelcontextprotocol.io/extensions/apps/build)
+- [MCP Apps SDK & Examples](https://github.com/modelcontextprotocol/ext-apps)
 
 ---
 
